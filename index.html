@@ -766,15 +766,15 @@
             document.getElementById('effectiveCapacity').textContent = effectiveCapacity.toFixed(2);
             document.getElementById('capacityPercent').textContent = `${(effectiveCapacity / numberOfProgrammers * 100).toFixed(0)}% efficiency (${numberOfProgrammers} programmers)`;
             document.getElementById('avgDuration').textContent = avg.toFixed(2);
-            document.getElementById('avgPercent').textContent = `${(avg / adjustedEstimate * 100).toFixed(1)}% of adjusted estimate`;
+            document.getElementById('avgPercent').textContent = `${(avg / adjustedEstimate * 100).toFixed(1)}% of adjusted | ${(avg / naiveEstimate * 100).toFixed(1)}% of naive`;
             document.getElementById('medianDuration').textContent = median.toFixed(2);
-            document.getElementById('medianPercent').textContent = `${(median / adjustedEstimate * 100).toFixed(1)}% of adjusted estimate`;
+            document.getElementById('medianPercent').textContent = `${(median / adjustedEstimate * 100).toFixed(1)}% of adjusted | ${(median / naiveEstimate * 100).toFixed(1)}% of naive`;
             document.getElementById('stdDev').textContent = stdDev.toFixed(2);
-            document.getElementById('stdDevPercent').textContent = `${(stdDev / adjustedEstimate * 100).toFixed(1)}% variation`;
+            document.getElementById('stdDevPercent').textContent = `${(stdDev / adjustedEstimate * 100).toFixed(1)}% of adjusted | ${(stdDev / naiveEstimate * 100).toFixed(1)}% of naive`;
             document.getElementById('minDuration').textContent = min.toFixed(2);
-            document.getElementById('minPercent').textContent = `${(min / adjustedEstimate * 100).toFixed(1)}% of adjusted estimate`;
+            document.getElementById('minPercent').textContent = `${(min / adjustedEstimate * 100).toFixed(1)}% of adjusted | ${(min / naiveEstimate * 100).toFixed(1)}% of naive`;
             document.getElementById('maxDuration').textContent = max.toFixed(2);
-            document.getElementById('maxPercent').textContent = `${(max / adjustedEstimate * 100).toFixed(1)}% of adjusted estimate`;
+            document.getElementById('maxPercent').textContent = `${(max / adjustedEstimate * 100).toFixed(1)}% of adjusted | ${(max / naiveEstimate * 100).toFixed(1)}% of naive`;
 
             // Render the chart
             renderChart(results, adjustedEstimate);
