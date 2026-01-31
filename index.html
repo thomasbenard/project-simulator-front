@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project Simulator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -135,6 +136,21 @@
             margin-bottom: 10px;
             font-size: 14px;
         }
+        .chart-container {
+            margin-top: 30px;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .chart-container.visible {
+            display: block;
+        }
+        .chart-container h2 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
     </style>
 </head>
 <body>
@@ -226,6 +242,11 @@
         </div>
     </div>
 
+    <div class="chart-container" id="chartContainer">
+        <h2>Simulation Results Distribution</h2>
+        <canvas id="resultsChart"></canvas>
+    </div>
+
     <script>
         // Preset distributions (converted from CSV files)
         const DISTRIBUTIONS = {
@@ -282,6 +303,9 @@
         const progressText = document.getElementById('progressText');
         const progressFill = document.getElementById('progressFill');
         const resultsDiv = document.getElementById('results');
+        const chartContainer = document.getElementById('chartContainer');
+        const resultsChartCanvas = document.getElementById('resultsChart');
+        let resultsChart = null;
 
         // Format distribution data for textarea
         function formatDistribution(dist) {
@@ -398,6 +422,88 @@
             return Math.sqrt(calculateAverage(squareDiffs));
         }
 
+        // Create histogram data from results
+        function createHistogram(values, numBins = 30) {
+            const min = Math.min(...values);
+            const max = Math.max(...values);
+            const binWidth = (max - min) / numBins;
+
+            const bins = [];
+            const labels = [];
+
+            for (let i = 0; i < numBins; i++) {
+                bins.push(0);
+                const binStart = min + i * binWidth;
+                const binEnd = min + (i + 1) * binWidth;
+                labels.push(`${binStart.toFixed(0)}-${binEnd.toFixed(0)}`);
+            }
+
+            for (const value of values) {
+                let binIndex = Math.floor((value - min) / binWidth);
+                if (binIndex >= numBins) binIndex = numBins - 1;
+                if (binIndex < 0) binIndex = 0;
+                bins[binIndex]++;
+            }
+
+            return { bins, labels };
+        }
+
+        // Render results chart
+        function renderChart(results, baseEstimate) {
+            const { bins, labels } = createHistogram(results);
+
+            if (resultsChart) {
+                resultsChart.destroy();
+            }
+
+            resultsChart = new Chart(resultsChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Number of Simulations',
+                        data: bins,
+                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                        borderColor: 'rgba(52, 152, 219, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: `Project Duration Distribution (Base Estimate: ${baseEstimate})`
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Project Duration (units)'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Frequency'
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            chartContainer.classList.add('visible');
+        }
+
         // Run simulation with progress updates
         async function runSimulation() {
             const numberOfTasks = parseInt(numberOfTasksInput.value);
@@ -413,6 +519,7 @@
             runBtn.disabled = true;
             progressDiv.classList.add('visible');
             resultsDiv.classList.remove('visible');
+            chartContainer.classList.remove('visible');
 
             const simulator = new ProjectSimulator(distribution);
             const results = [];
@@ -452,6 +559,9 @@
             document.getElementById('minPercent').textContent = `${(min / baseEstimate * 100).toFixed(1)}% of estimate`;
             document.getElementById('maxDuration').textContent = max.toFixed(2);
             document.getElementById('maxPercent').textContent = `${(max / baseEstimate * 100).toFixed(1)}% of estimate`;
+
+            // Render the chart
+            renderChart(results, baseEstimate);
 
             progressDiv.classList.remove('visible');
             resultsDiv.classList.add('visible');
