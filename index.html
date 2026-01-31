@@ -268,8 +268,14 @@
         <h2>Results</h2>
         <div class="stat-grid">
             <div class="stat-card">
-                <div class="label">Base Estimate</div>
-                <div class="value" id="baseEstimate">-</div>
+                <div class="label">Naive Base Estimate</div>
+                <div class="value" id="naiveEstimate">-</div>
+                <div class="percent" id="naiveEstimateInfo"></div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Adjusted Base Estimate</div>
+                <div class="value" id="adjustedEstimate">-</div>
+                <div class="percent" id="adjustedEstimateInfo"></div>
             </div>
             <div class="stat-card">
                 <div class="label">Effective Team Capacity</div>
@@ -742,30 +748,36 @@
             }
 
             // Calculate statistics
-            const baseEstimate = numberOfTasks;
             const avg = calculateAverage(results);
             const median = calculateMedian(results);
             const stdDev = calculateStandardDeviation(results);
             const min = Math.min(...results);
             const max = Math.max(...results);
 
+            // Calculate base estimates
+            const naiveEstimate = numberOfTasks / numberOfProgrammers; // Assumes linear scaling
+            const adjustedEstimate = numberOfTasks / effectiveCapacity; // Accounts for diminishing returns
+
             // Display results
-            document.getElementById('baseEstimate').textContent = baseEstimate.toFixed(2);
+            document.getElementById('naiveEstimate').textContent = naiveEstimate.toFixed(2);
+            document.getElementById('naiveEstimateInfo').textContent = `${numberOfTasks} tasks / ${numberOfProgrammers} programmers`;
+            document.getElementById('adjustedEstimate').textContent = adjustedEstimate.toFixed(2);
+            document.getElementById('adjustedEstimateInfo').textContent = `${numberOfTasks} tasks / ${effectiveCapacity.toFixed(2)} effective capacity`;
             document.getElementById('effectiveCapacity').textContent = effectiveCapacity.toFixed(2);
             document.getElementById('capacityPercent').textContent = `${(effectiveCapacity / numberOfProgrammers * 100).toFixed(0)}% efficiency (${numberOfProgrammers} programmers)`;
             document.getElementById('avgDuration').textContent = avg.toFixed(2);
-            document.getElementById('avgPercent').textContent = `${(avg / baseEstimate * 100).toFixed(1)}% of estimate`;
+            document.getElementById('avgPercent').textContent = `${(avg / adjustedEstimate * 100).toFixed(1)}% of adjusted estimate`;
             document.getElementById('medianDuration').textContent = median.toFixed(2);
-            document.getElementById('medianPercent').textContent = `${(median / baseEstimate * 100).toFixed(1)}% of estimate`;
+            document.getElementById('medianPercent').textContent = `${(median / adjustedEstimate * 100).toFixed(1)}% of adjusted estimate`;
             document.getElementById('stdDev').textContent = stdDev.toFixed(2);
-            document.getElementById('stdDevPercent').textContent = `${(stdDev / baseEstimate * 100).toFixed(1)}% variation`;
+            document.getElementById('stdDevPercent').textContent = `${(stdDev / adjustedEstimate * 100).toFixed(1)}% variation`;
             document.getElementById('minDuration').textContent = min.toFixed(2);
-            document.getElementById('minPercent').textContent = `${(min / baseEstimate * 100).toFixed(1)}% of estimate`;
+            document.getElementById('minPercent').textContent = `${(min / adjustedEstimate * 100).toFixed(1)}% of adjusted estimate`;
             document.getElementById('maxDuration').textContent = max.toFixed(2);
-            document.getElementById('maxPercent').textContent = `${(max / baseEstimate * 100).toFixed(1)}% of estimate`;
+            document.getElementById('maxPercent').textContent = `${(max / adjustedEstimate * 100).toFixed(1)}% of adjusted estimate`;
 
             // Render the chart
-            renderChart(results, baseEstimate);
+            renderChart(results, adjustedEstimate);
 
             progressDiv.classList.remove('visible');
             resultsDiv.classList.add('visible');
