@@ -204,7 +204,30 @@
     <div class="input-group">
         <label for="numberOfTasks">Number of Tasks</label>
         <input type="number" id="numberOfTasks" value="1000" min="1" max="100000">
-        <p class="help-text">Number of tasks to simulate (each estimated at 1 unit)</p>
+        <p class="help-text">Number of tasks to simulate</p>
+    </div>
+
+    <div class="input-group">
+        <label for="taskSizePreset">Task Size Distribution</label>
+        <select id="taskSizePreset">
+            <option value="uniform">Uniform (all size 1)</option>
+            <option value="fibonacci">Fibonacci (1, 2, 3, 5, 8, 13)</option>
+            <option value="custom">Custom</option>
+        </select>
+        <div id="taskSizeInfo" class="distribution-info"></div>
+    </div>
+
+    <div class="input-group">
+        <label>Task Size Data</label>
+        <div class="distribution-editor">
+            <div class="spreadsheet-wrapper">
+                <div id="taskSizeSpreadsheet"></div>
+            </div>
+            <div class="distribution-chart-wrapper">
+                <canvas id="taskSizeChart"></canvas>
+                <p class="chart-help">Drag bars to adjust weights</p>
+            </div>
+        </div>
     </div>
 
     <div class="input-group">
@@ -316,6 +339,22 @@
     </div>
 
     <script>
+        // Task size distributions
+        const TASK_SIZE_DISTRIBUTIONS = {
+            uniform: [
+                [1, 100]
+            ],
+            fibonacci: [
+                [1, 40], [2, 25], [3, 18], [5, 10], [8, 5], [13, 2]
+            ]
+        };
+
+        const TASK_SIZE_INFO = {
+            uniform: 'All tasks have the same estimated size (1 unit). This is the default behavior.',
+            fibonacci: 'Task sizes follow Fibonacci sequence (1, 2, 3, 5, 8, 13) with more small tasks than large ones.',
+            custom: 'Enter your own task size distribution below.'
+        };
+
         // Preset distributions (converted from CSV files)
         const DISTRIBUTIONS = {
             default: [
@@ -367,6 +406,8 @@
         const teamScalingFactorInput = document.getElementById('teamScalingFactor');
         const distributionPresetSelect = document.getElementById('distributionPreset');
         const distributionInfo = document.getElementById('distributionInfo');
+        const taskSizePresetSelect = document.getElementById('taskSizePreset');
+        const taskSizeInfo = document.getElementById('taskSizeInfo');
         const runBtn = document.getElementById('runBtn');
         const progressDiv = document.getElementById('progress');
         const progressText = document.getElementById('progressText');
@@ -375,13 +416,18 @@
         const chartContainer = document.getElementById('chartContainer');
         const resultsChartCanvas = document.getElementById('resultsChart');
         const distributionChartCanvas = document.getElementById('distributionChart');
+        const taskSizeChartCanvas = document.getElementById('taskSizeChart');
         let resultsChart = null;
         let distributionChart = null;
+        let taskSizeChart = null;
         let spreadsheet = null;
+        let taskSizeSpreadsheet = null;
 
         // Current distribution data
         let currentDistribution = [];
+        let currentTaskSizeDistribution = [];
         let isUpdatingFromChart = false;
+        let isUpdatingTaskSizeFromChart = false;
 
         // Get distribution from spreadsheet
         function getDistributionFromSpreadsheet() {
@@ -538,6 +584,168 @@
             renderDistributionChart(false);
         }
 
+        // ===== Task Size Distribution Functions =====
+
+        // Get task size distribution from spreadsheet
+        function getTaskSizeFromSpreadsheet() {
+            if (!taskSizeSpreadsheet) return [];
+            const data = taskSizeSpreadsheet.getData();
+            const distribution = [];
+
+            data.forEach(row => {
+                const size = parseFloat(row[0]);
+                const weight = parseFloat(row[1]);
+
+                if (!isNaN(size) && !isNaN(weight) && size > 0) {
+                    distribution.push({ size, weight });
+                }
+            });
+
+            return distribution.sort((a, b) => a.size - b.size);
+        }
+
+        // Update task size spreadsheet from distribution data
+        function updateTaskSizeSpreadsheet(distribution) {
+            if (!taskSizeSpreadsheet) return;
+            const data = distribution.map(d => [d.size, d.weight]);
+            taskSizeSpreadsheet.setData(data);
+        }
+
+        // Handle task size spreadsheet changes
+        function onTaskSizeSpreadsheetChange() {
+            if (isUpdatingTaskSizeFromChart) return;
+            currentTaskSizeDistribution = getTaskSizeFromSpreadsheet();
+            renderTaskSizeChart(false);
+        }
+
+        // Initialize task size spreadsheet
+        function initTaskSizeSpreadsheet(data) {
+            const container = document.getElementById('taskSizeSpreadsheet');
+            container.innerHTML = '';
+
+            taskSizeSpreadsheet = jspreadsheet(container, {
+                data: data.map(d => [d.size, d.weight]),
+                columns: [
+                    { type: 'numeric', title: 'Task Size', width: 100 },
+                    { type: 'numeric', title: 'Weight', width: 100 }
+                ],
+                minDimensions: [2, 1],
+                allowInsertRow: true,
+                allowDeleteRow: true,
+                allowInsertColumn: false,
+                allowDeleteColumn: false,
+                columnSorting: false,
+                tableOverflow: true,
+                tableHeight: '200px',
+                onchange: onTaskSizeSpreadsheetChange,
+                oninsertrow: onTaskSizeSpreadsheetChange,
+                ondeleterow: onTaskSizeSpreadsheetChange,
+                onundo: onTaskSizeSpreadsheetChange,
+                onredo: onTaskSizeSpreadsheetChange
+            });
+        }
+
+        // Render task size chart (interactive)
+        function renderTaskSizeChart(updateSpreadsheetData = true) {
+            const distribution = currentTaskSizeDistribution.filter(d => d.weight > 0);
+
+            if (distribution.length === 0) {
+                if (taskSizeChart) {
+                    taskSizeChart.destroy();
+                    taskSizeChart = null;
+                }
+                return;
+            }
+
+            const labels = distribution.map(d => `${d.size}`);
+            const weights = distribution.map(d => d.weight);
+
+            if (taskSizeChart) {
+                taskSizeChart.destroy();
+            }
+
+            taskSizeChart = new Chart(taskSizeChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Weight',
+                        data: weights,
+                        backgroundColor: 'rgba(155, 89, 182, 0.7)',
+                        borderColor: 'rgba(155, 89, 182, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Task Size Distribution'
+                        },
+                        legend: {
+                            display: false
+                        },
+                        dragData: {
+                            round: 1,
+                            showTooltip: true,
+                            onDragEnd: function(e, datasetIndex, index, value) {
+                                const visibleDist = currentTaskSizeDistribution.filter(d => d.weight > 0);
+                                const size = visibleDist[index].size;
+
+                                const mainIndex = currentTaskSizeDistribution.findIndex(d => d.size === size);
+                                if (mainIndex !== -1) {
+                                    currentTaskSizeDistribution[mainIndex].weight = Math.max(0, value);
+                                    isUpdatingTaskSizeFromChart = true;
+                                    updateTaskSizeSpreadsheet(currentTaskSizeDistribution);
+                                    isUpdatingTaskSizeFromChart = false;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Task Size (units)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Weight'
+                            },
+                            beginAtZero: true,
+                            min: 0
+                        }
+                    }
+                }
+            });
+        }
+
+        // Load task size distribution from preset array
+        function loadTaskSizeDistribution(dist) {
+            currentTaskSizeDistribution = dist
+                .filter(([_, w]) => w >= 0)
+                .map(([s, w]) => ({ size: s, weight: w }));
+            initTaskSizeSpreadsheet(currentTaskSizeDistribution);
+            renderTaskSizeChart(false);
+        }
+
+        // Update when task size preset changes
+        taskSizePresetSelect.addEventListener('change', () => {
+            const preset = taskSizePresetSelect.value;
+            taskSizeInfo.textContent = TASK_SIZE_INFO[preset];
+
+            if (preset !== 'custom' && TASK_SIZE_DISTRIBUTIONS[preset]) {
+                loadTaskSizeDistribution(TASK_SIZE_DISTRIBUTIONS[preset]);
+            }
+        });
+
+        // Initialize task size distribution with default
+        taskSizePresetSelect.dispatchEvent(new Event('change'));
+
         // Update when preset changes
         distributionPresetSelect.addEventListener('change', () => {
             const preset = distributionPresetSelect.value;
@@ -553,9 +761,11 @@
 
         // Simulation class
         class ProjectSimulator {
-            constructor(distribution) {
+            constructor(distribution, taskSizeDistribution) {
                 this.distribution = distribution;
                 this.totalWeight = distribution.reduce((sum, entry) => sum + entry.weight, 0);
+                this.taskSizeDistribution = taskSizeDistribution;
+                this.totalTaskSizeWeight = taskSizeDistribution.reduce((sum, entry) => sum + entry.weight, 0);
             }
 
             selectWeightedPercentage() {
@@ -572,16 +782,32 @@
                 return this.distribution[this.distribution.length - 1].percentage;
             }
 
+            selectTaskSize() {
+                const randomValue = Math.random() * this.totalTaskSizeWeight;
+                let cumulativeWeight = 0;
+
+                for (const entry of this.taskSizeDistribution) {
+                    cumulativeWeight += entry.weight;
+                    if (randomValue <= cumulativeWeight) {
+                        return entry.size;
+                    }
+                }
+
+                return this.taskSizeDistribution[this.taskSizeDistribution.length - 1].size;
+            }
+
             simulate(numberOfTasks, rejectionRate = 0) {
                 let totalDuration = 0;
-                const baseTaskDuration = 1.0;
 
                 for (let i = 0; i < numberOfTasks; i++) {
+                    // Select task size from distribution
+                    const taskSize = this.selectTaskSize();
+
                     // Complete the task (may need multiple attempts if rejected)
                     let accepted = false;
                     while (!accepted) {
                         const percentage = this.selectWeightedPercentage();
-                        totalDuration += baseTaskDuration * (percentage / 100);
+                        totalDuration += taskSize * (percentage / 100);
 
                         // Check if task is rejected and needs to be redone
                         if (rejectionRate > 0 && Math.random() * 100 < rejectionRate) {
@@ -712,9 +938,15 @@
             const numberOfProgrammers = parseInt(numberOfProgrammersInput.value) || 1;
             const teamScalingFactor = parseFloat(teamScalingFactorInput.value) || 0.7;
             const distribution = currentDistribution.filter(d => d.weight > 0);
+            const taskSizeDistribution = currentTaskSizeDistribution.filter(d => d.weight > 0);
 
             if (distribution.length === 0) {
                 alert('Please add at least one distribution entry with weight > 0');
+                return;
+            }
+
+            if (taskSizeDistribution.length === 0) {
+                alert('Please add at least one task size entry with weight > 0');
                 return;
             }
 
@@ -726,7 +958,7 @@
             // Calculate effective team capacity
             const effectiveCapacity = calculateEffectiveCapacity(numberOfProgrammers, teamScalingFactor);
 
-            const simulator = new ProjectSimulator(distribution);
+            const simulator = new ProjectSimulator(distribution, taskSizeDistribution);
             const results = [];
             const batchSize = Math.max(1, Math.floor(numberOfRuns / 100));
 
@@ -754,15 +986,20 @@
             const min = Math.min(...results);
             const max = Math.max(...results);
 
+            // Calculate average task size from distribution
+            const totalTaskSizeWeight = taskSizeDistribution.reduce((sum, d) => sum + d.weight, 0);
+            const avgTaskSize = taskSizeDistribution.reduce((sum, d) => sum + d.size * d.weight, 0) / totalTaskSizeWeight;
+            const totalEstimatedWork = numberOfTasks * avgTaskSize;
+
             // Calculate base estimates
-            const naiveEstimate = numberOfTasks / numberOfProgrammers; // Assumes linear scaling
-            const adjustedEstimate = numberOfTasks / effectiveCapacity; // Accounts for diminishing returns
+            const naiveEstimate = totalEstimatedWork / numberOfProgrammers; // Assumes linear scaling
+            const adjustedEstimate = totalEstimatedWork / effectiveCapacity; // Accounts for diminishing returns
 
             // Display results
             document.getElementById('naiveEstimate').textContent = naiveEstimate.toFixed(2);
-            document.getElementById('naiveEstimateInfo').textContent = `${numberOfTasks} tasks / ${numberOfProgrammers} programmers`;
+            document.getElementById('naiveEstimateInfo').textContent = `${totalEstimatedWork.toFixed(1)} work units / ${numberOfProgrammers} programmers`;
             document.getElementById('adjustedEstimate').textContent = adjustedEstimate.toFixed(2);
-            document.getElementById('adjustedEstimateInfo').textContent = `${numberOfTasks} tasks / ${effectiveCapacity.toFixed(2)} effective capacity`;
+            document.getElementById('adjustedEstimateInfo').textContent = `${totalEstimatedWork.toFixed(1)} work units / ${effectiveCapacity.toFixed(2)} effective capacity`;
             document.getElementById('effectiveCapacity').textContent = effectiveCapacity.toFixed(2);
             document.getElementById('capacityPercent').textContent = `${(effectiveCapacity / numberOfProgrammers * 100).toFixed(0)}% efficiency (${numberOfProgrammers} programmers)`;
             document.getElementById('avgDuration').textContent = avg.toFixed(2);
