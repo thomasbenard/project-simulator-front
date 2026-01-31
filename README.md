@@ -8,4 +8,4 @@ A browser-based Monte Carlo simulation tool that estimates actual project durati
 
 - [ ] Possibility to simulate links between tasks
 - [ ] Add task size variation
-- [ ] Add "number of programmers" parameter to parallelize tasks
+- [x] Add "number of programmers" parameter to parallelize tasks
