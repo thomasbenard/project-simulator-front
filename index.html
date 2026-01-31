@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project Simulator</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-dragdata"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -153,18 +154,81 @@
         }
         .distribution-editor {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 300px 1fr;
             gap: 20px;
             align-items: start;
         }
-        .distribution-editor textarea {
-            height: 250px;
+        .distribution-table-wrapper {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        .distribution-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        .distribution-table th {
+            background: #f8f9fa;
+            padding: 8px 10px;
+            text-align: left;
+            font-weight: 500;
+            border-bottom: 2px solid #ddd;
+            position: sticky;
+            top: 0;
+        }
+        .distribution-table td {
+            padding: 4px 6px;
+            border-bottom: 1px solid #eee;
+        }
+        .distribution-table input {
+            width: 70px;
+            padding: 4px 6px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        .distribution-table input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        .distribution-table .delete-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 3px 8px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .distribution-table .delete-btn:hover {
+            background: #c0392b;
+        }
+        .table-controls {
+            padding: 10px;
+            background: #f8f9fa;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+        }
+        .table-controls button {
+            padding: 6px 12px;
+            font-size: 13px;
         }
         .distribution-chart-wrapper {
             background: white;
             padding: 15px;
             border-radius: 4px;
             border: 1px solid #ddd;
+            min-height: 300px;
+        }
+        .chart-help {
+            font-size: 12px;
+            color: #888;
+            margin-top: 8px;
+            text-align: center;
         }
         @media (max-width: 700px) {
             .distribution-editor {
@@ -210,17 +274,29 @@
     </div>
 
     <div class="input-group">
-        <label for="distributionData">Distribution Data (Percentage, Weight)</label>
+        <label>Distribution Data</label>
         <div class="distribution-editor">
             <div>
-                <textarea id="distributionData" placeholder="100,30
-110,28
-120,25
-..."></textarea>
-                <p class="help-text">One entry per line: percentage of estimate, probability weight (tab or comma separated)</p>
+                <div class="distribution-table-wrapper">
+                    <table class="distribution-table">
+                        <thead>
+                            <tr>
+                                <th>% of Estimate</th>
+                                <th>Weight</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="distributionTableBody">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="table-controls">
+                    <button type="button" id="addRowBtn">+ Add Row</button>
+                </div>
             </div>
             <div class="distribution-chart-wrapper">
                 <canvas id="distributionChart"></canvas>
+                <p class="chart-help">Drag bars to adjust weights</p>
             </div>
         </div>
     </div>
@@ -323,7 +399,8 @@
         const numberOfRunsInput = document.getElementById('numberOfRuns');
         const rejectionRateInput = document.getElementById('rejectionRate');
         const distributionPresetSelect = document.getElementById('distributionPreset');
-        const distributionDataTextarea = document.getElementById('distributionData');
+        const distributionTableBody = document.getElementById('distributionTableBody');
+        const addRowBtn = document.getElementById('addRowBtn');
         const distributionInfo = document.getElementById('distributionInfo');
         const runBtn = document.getElementById('runBtn');
         const progressDiv = document.getElementById('progress');
@@ -336,45 +413,91 @@
         let resultsChart = null;
         let distributionChart = null;
 
-        // Format distribution data for textarea
-        function formatDistribution(dist) {
-            return dist.filter(([_, w]) => w > 0).map(([p, w]) => `${p}\t${w}`).join('\n');
-        }
+        // Current distribution data
+        let currentDistribution = [];
 
-        // Parse distribution data from textarea
-        function parseDistribution(text) {
-            const lines = text.trim().split('\n');
+        // Get distribution from table
+        function getDistributionFromTable() {
+            const rows = distributionTableBody.querySelectorAll('tr');
             const distribution = [];
 
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed) continue;
+            rows.forEach(row => {
+                const inputs = row.querySelectorAll('input');
+                const percentage = parseFloat(inputs[0].value);
+                const weight = parseFloat(inputs[1].value);
 
-                // Support tab, comma, or semicolon as separator
-                // Also support European decimal format (comma as decimal separator)
-                let parts = trimmed.split(/[\t;]/);
-                if (parts.length < 2) {
-                    // Try comma, but be careful with European decimals
-                    parts = trimmed.split(',');
+                if (!isNaN(percentage) && !isNaN(weight)) {
+                    distribution.push({ percentage, weight });
                 }
+            });
 
-                if (parts.length >= 2) {
-                    // Handle European decimal format (replace comma with dot)
-                    const percentage = parseFloat(parts[0].replace(',', '.'));
-                    const weight = parseFloat(parts[1].replace(',', '.'));
-
-                    if (!isNaN(percentage) && !isNaN(weight) && weight > 0) {
-                        distribution.push({ percentage, weight });
-                    }
-                }
-            }
-
-            return distribution;
+            return distribution.sort((a, b) => a.percentage - b.percentage);
         }
 
-        // Render distribution chart
-        function renderDistributionChart() {
-            const distribution = parseDistribution(distributionDataTextarea.value);
+        // Render table from distribution data
+        function renderTable(distribution) {
+            distributionTableBody.innerHTML = '';
+
+            distribution.forEach((entry, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><input type="number" value="${entry.percentage}" min="0" max="2000" step="10" data-field="percentage" data-index="${index}"></td>
+                    <td><input type="number" value="${entry.weight}" min="0" max="100" step="0.1" data-field="weight" data-index="${index}"></td>
+                    <td><button type="button" class="delete-btn" data-index="${index}">X</button></td>
+                `;
+                distributionTableBody.appendChild(row);
+            });
+
+            // Add event listeners
+            distributionTableBody.querySelectorAll('input').forEach(input => {
+                input.addEventListener('change', onTableInputChange);
+            });
+
+            distributionTableBody.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', onDeleteRow);
+            });
+        }
+
+        // Handle table input change
+        function onTableInputChange(e) {
+            const index = parseInt(e.target.dataset.index);
+            const field = e.target.dataset.field;
+            const value = parseFloat(e.target.value);
+
+            if (!isNaN(value) && currentDistribution[index]) {
+                currentDistribution[index][field] = value;
+                currentDistribution.sort((a, b) => a.percentage - b.percentage);
+                renderTable(currentDistribution);
+                renderDistributionChart(false); // Don't update table again
+            }
+        }
+
+        // Handle delete row
+        function onDeleteRow(e) {
+            const index = parseInt(e.target.dataset.index);
+            currentDistribution.splice(index, 1);
+            renderTable(currentDistribution);
+            renderDistributionChart(false);
+        }
+
+        // Handle add row
+        addRowBtn.addEventListener('click', () => {
+            // Find a good default percentage (next available slot)
+            const existingPercentages = currentDistribution.map(d => d.percentage);
+            let newPercentage = 100;
+            while (existingPercentages.includes(newPercentage)) {
+                newPercentage += 10;
+            }
+
+            currentDistribution.push({ percentage: newPercentage, weight: 1 });
+            currentDistribution.sort((a, b) => a.percentage - b.percentage);
+            renderTable(currentDistribution);
+            renderDistributionChart(false);
+        });
+
+        // Render distribution chart (interactive)
+        function renderDistributionChart(updateTable = true) {
+            const distribution = currentDistribution.filter(d => d.weight > 0);
 
             if (distribution.length === 0) {
                 if (distributionChart) {
@@ -413,6 +536,22 @@
                         },
                         legend: {
                             display: false
+                        },
+                        dragData: {
+                            round: 1,
+                            showTooltip: true,
+                            onDragEnd: function(e, datasetIndex, index, value) {
+                                // Update the distribution data
+                                const visibleDist = currentDistribution.filter(d => d.weight > 0);
+                                const percentage = visibleDist[index].percentage;
+
+                                // Find and update in main distribution
+                                const mainIndex = currentDistribution.findIndex(d => d.percentage === percentage);
+                                if (mainIndex !== -1) {
+                                    currentDistribution[mainIndex].weight = Math.max(0, value);
+                                    renderTable(currentDistribution);
+                                }
+                            }
                         }
                     },
                     scales: {
@@ -433,27 +572,31 @@
                                 display: true,
                                 text: 'Weight'
                             },
-                            beginAtZero: true
+                            beginAtZero: true,
+                            min: 0
                         }
                     }
                 }
             });
         }
 
-        // Update textarea when preset changes
+        // Load distribution from preset array
+        function loadDistribution(dist) {
+            currentDistribution = dist
+                .filter(([_, w]) => w >= 0)
+                .map(([p, w]) => ({ percentage: p, weight: w }));
+            renderTable(currentDistribution);
+            renderDistributionChart(false);
+        }
+
+        // Update when preset changes
         distributionPresetSelect.addEventListener('change', () => {
             const preset = distributionPresetSelect.value;
             distributionInfo.textContent = DISTRIBUTION_INFO[preset];
 
             if (preset !== 'custom' && DISTRIBUTIONS[preset]) {
-                distributionDataTextarea.value = formatDistribution(DISTRIBUTIONS[preset]);
+                loadDistribution(DISTRIBUTIONS[preset]);
             }
-            renderDistributionChart();
-        });
-
-        // Update chart when textarea changes
-        distributionDataTextarea.addEventListener('input', () => {
-            renderDistributionChart();
         });
 
         // Initialize with default distribution
@@ -612,10 +755,10 @@
             const numberOfTasks = parseInt(numberOfTasksInput.value);
             const numberOfRuns = parseInt(numberOfRunsInput.value);
             const rejectionRate = parseFloat(rejectionRateInput.value) || 0;
-            const distribution = parseDistribution(distributionDataTextarea.value);
+            const distribution = currentDistribution.filter(d => d.weight > 0);
 
             if (distribution.length === 0) {
-                alert('Please enter a valid probability distribution');
+                alert('Please add at least one distribution entry with weight > 0');
                 return;
             }
 
