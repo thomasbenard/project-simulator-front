@@ -134,6 +134,32 @@
             color: #888;
             margin-top: 5px;
         }
+        .form-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .form-section h3 {
+            margin: 0 0 15px 0;
+            color: #2c3e50;
+            font-size: 16px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .form-grid .input-group {
+            margin-bottom: 0;
+        }
+        .form-section input[type="number"],
+        .form-section select {
+            width: 100%;
+        }
         .distribution-info {
             background: #e8f4f8;
             padding: 10px;
@@ -192,6 +218,20 @@
                 grid-template-columns: 1fr;
             }
         }
+        @media (max-width: 500px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .run-button-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .run-button-container button {
+            padding: 15px 50px;
+            font-size: 18px;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -201,84 +241,95 @@
         Simulates how task estimates vary from actual completion times.
     </p>
 
-    <div class="input-group">
-        <label for="numberOfTasks">Number of Tasks</label>
-        <input type="number" id="numberOfTasks" value="1000" min="1" max="100000">
-        <p class="help-text">Number of tasks to simulate</p>
-    </div>
-
-    <div class="input-group">
-        <label for="taskSizePreset">Task Size Distribution</label>
-        <select id="taskSizePreset">
-            <option value="uniform">Uniform (all size 1)</option>
-            <option value="fibonacci">Fibonacci (1, 2, 3, 5, 8, 13)</option>
-            <option value="custom">Custom</option>
-        </select>
-        <div id="taskSizeInfo" class="distribution-info"></div>
-    </div>
-
-    <div class="input-group">
-        <label>Task Size Data</label>
-        <div class="distribution-editor">
-            <div class="spreadsheet-wrapper">
-                <div id="taskSizeSpreadsheet"></div>
+    <section class="form-section">
+        <h3>Simulation Parameters</h3>
+        <div class="form-grid">
+            <div class="input-group">
+                <label for="numberOfTasks">Number of Tasks</label>
+                <input type="number" id="numberOfTasks" value="1000" min="1" max="100000">
+                <p class="help-text">Number of tasks to simulate</p>
             </div>
-            <div class="distribution-chart-wrapper">
-                <canvas id="taskSizeChart"></canvas>
-                <p class="chart-help">Drag bars to adjust weights</p>
+            <div class="input-group">
+                <label for="numberOfRuns">Number of Simulation Runs</label>
+                <input type="number" id="numberOfRuns" value="100" min="1" max="10000">
+                <p class="help-text">More runs = more accurate statistics</p>
+            </div>
+            <div class="input-group">
+                <label for="rejectionRate">Rejection Rate (%)</label>
+                <input type="number" id="rejectionRate" value="0" min="0" max="99" step="1">
+                <p class="help-text">Probability that a completed task is rejected and must be redone (0-99%)</p>
             </div>
         </div>
-    </div>
+    </section>
 
-    <div class="input-group">
-        <label for="numberOfRuns">Number of Simulation Runs</label>
-        <input type="number" id="numberOfRuns" value="100" min="1" max="10000">
-        <p class="help-text">More runs = more accurate statistics</p>
-    </div>
-
-    <div class="input-group">
-        <label for="rejectionRate">Rejection Rate (%)</label>
-        <input type="number" id="rejectionRate" value="0" min="0" max="99" step="1">
-        <p class="help-text">Probability that a completed task is rejected and must be redone (0-99%)</p>
-    </div>
-
-    <div class="input-group">
-        <label for="numberOfProgrammers">Number of Programmers</label>
-        <input type="number" id="numberOfProgrammers" value="1" min="1" max="100">
-        <p class="help-text">Team size - tasks are parallelized with diminishing returns</p>
-    </div>
-
-    <div class="input-group">
-        <label for="teamScalingFactor">Team Scaling Factor (α)</label>
-        <input type="number" id="teamScalingFactor" value="0.7" min="0.1" max="1.0" step="0.1">
-        <p class="help-text">Effective capacity = n^α (1.0 = linear, 0.7 = typical, 0.5 = high overhead)</p>
-    </div>
-
-    <div class="input-group">
-        <label for="distributionPreset">Probability Distribution</label>
-        <select id="distributionPreset">
-            <option value="default">Default (Sharp peak, long tail)</option>
-            <option value="flatter">Flatter (Wider peak)</option>
-            <option value="shortTail">Short Tail (No extreme outliers)</option>
-            <option value="custom">Custom</option>
-        </select>
-        <div id="distributionInfo" class="distribution-info"></div>
-    </div>
-
-    <div class="input-group">
-        <label>Distribution Data</label>
-        <div class="distribution-editor">
-            <div class="spreadsheet-wrapper">
-                <div id="distributionSpreadsheet"></div>
+    <section class="form-section">
+        <h3>Team Settings</h3>
+        <div class="form-grid">
+            <div class="input-group">
+                <label for="numberOfProgrammers">Number of Programmers</label>
+                <input type="number" id="numberOfProgrammers" value="1" min="1" max="100">
+                <p class="help-text">Team size - tasks are parallelized with diminishing returns</p>
             </div>
-            <div class="distribution-chart-wrapper">
-                <canvas id="distributionChart"></canvas>
-                <p class="chart-help">Drag bars to adjust weights</p>
+            <div class="input-group">
+                <label for="teamScalingFactor">Team Scaling Factor (α)</label>
+                <input type="number" id="teamScalingFactor" value="0.7" min="0.1" max="1.0" step="0.1">
+                <p class="help-text">Effective capacity = n^α (1.0 = linear, 0.7 = typical, 0.5 = high overhead)</p>
             </div>
         </div>
-    </div>
+    </section>
 
-    <button id="runBtn">Run Simulation</button>
+    <section class="form-section">
+        <h3>Task Size Distribution</h3>
+        <div class="input-group">
+            <label for="taskSizePreset">Preset</label>
+            <select id="taskSizePreset">
+                <option value="uniform">Uniform (all size 1)</option>
+                <option value="fibonacci">Fibonacci (1, 2, 3, 5, 8, 13)</option>
+                <option value="custom">Custom</option>
+            </select>
+            <div id="taskSizeInfo" class="distribution-info"></div>
+        </div>
+        <div class="input-group">
+            <div class="distribution-editor">
+                <div class="spreadsheet-wrapper">
+                    <div id="taskSizeSpreadsheet"></div>
+                </div>
+                <div class="distribution-chart-wrapper">
+                    <canvas id="taskSizeChart"></canvas>
+                    <p class="chart-help">Drag bars to adjust weights</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="form-section">
+        <h3>Duration Variance Distribution</h3>
+        <div class="input-group">
+            <label for="distributionPreset">Preset</label>
+            <select id="distributionPreset">
+                <option value="default">Default (Sharp peak, long tail)</option>
+                <option value="flatter">Flatter (Wider peak)</option>
+                <option value="shortTail">Short Tail (No extreme outliers)</option>
+                <option value="custom">Custom</option>
+            </select>
+            <div id="distributionInfo" class="distribution-info"></div>
+        </div>
+        <div class="input-group">
+            <div class="distribution-editor">
+                <div class="spreadsheet-wrapper">
+                    <div id="distributionSpreadsheet"></div>
+                </div>
+                <div class="distribution-chart-wrapper">
+                    <canvas id="distributionChart"></canvas>
+                    <p class="chart-help">Drag bars to adjust weights</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="run-button-container">
+        <button id="runBtn">Run Simulation</button>
+    </div>
 
     <div class="progress" id="progress">
         <p>Running simulation... <span id="progressText">0%</span></p>
