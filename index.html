@@ -151,6 +151,26 @@
             margin-top: 0;
             color: #2c3e50;
         }
+        .distribution-editor {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            align-items: start;
+        }
+        .distribution-editor textarea {
+            height: 250px;
+        }
+        .distribution-chart-wrapper {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        @media (max-width: 700px) {
+            .distribution-editor {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -191,11 +211,18 @@
 
     <div class="input-group">
         <label for="distributionData">Distribution Data (Percentage, Weight)</label>
-        <textarea id="distributionData" placeholder="100,30
+        <div class="distribution-editor">
+            <div>
+                <textarea id="distributionData" placeholder="100,30
 110,28
 120,25
 ..."></textarea>
-        <p class="help-text">One entry per line: percentage of estimate, probability weight (tab or comma separated)</p>
+                <p class="help-text">One entry per line: percentage of estimate, probability weight (tab or comma separated)</p>
+            </div>
+            <div class="distribution-chart-wrapper">
+                <canvas id="distributionChart"></canvas>
+            </div>
+        </div>
     </div>
 
     <button id="runBtn">Run Simulation</button>
@@ -305,7 +332,9 @@
         const resultsDiv = document.getElementById('results');
         const chartContainer = document.getElementById('chartContainer');
         const resultsChartCanvas = document.getElementById('resultsChart');
+        const distributionChartCanvas = document.getElementById('distributionChart');
         let resultsChart = null;
+        let distributionChart = null;
 
         // Format distribution data for textarea
         function formatDistribution(dist) {
@@ -343,6 +372,74 @@
             return distribution;
         }
 
+        // Render distribution chart
+        function renderDistributionChart() {
+            const distribution = parseDistribution(distributionDataTextarea.value);
+
+            if (distribution.length === 0) {
+                if (distributionChart) {
+                    distributionChart.destroy();
+                    distributionChart = null;
+                }
+                return;
+            }
+
+            const labels = distribution.map(d => `${d.percentage}%`);
+            const weights = distribution.map(d => d.weight);
+
+            if (distributionChart) {
+                distributionChart.destroy();
+            }
+
+            distributionChart = new Chart(distributionChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Weight',
+                        data: weights,
+                        backgroundColor: 'rgba(46, 204, 113, 0.7)',
+                        borderColor: 'rgba(46, 204, 113, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Probability Distribution'
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '% of Estimate'
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: 20
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Weight'
+                            },
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
         // Update textarea when preset changes
         distributionPresetSelect.addEventListener('change', () => {
             const preset = distributionPresetSelect.value;
@@ -351,6 +448,12 @@
             if (preset !== 'custom' && DISTRIBUTIONS[preset]) {
                 distributionDataTextarea.value = formatDistribution(DISTRIBUTIONS[preset]);
             }
+            renderDistributionChart();
+        });
+
+        // Update chart when textarea changes
+        distributionDataTextarea.addEventListener('input', () => {
+            renderDistributionChart();
         });
 
         // Initialize with default distribution
